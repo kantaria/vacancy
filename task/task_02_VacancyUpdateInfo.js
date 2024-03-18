@@ -29,7 +29,7 @@ async function fetchVacancyDetails(url, searchQuery) {
                 hh_vacancy_view_accept_temporary: $('[data-qa="vacancy-view-accept-temporary"]').text().replace('Возможно временное оформление:', '').trim().split(',').map(text => text.trim()).filter(text => text.length > 0) || null,
                 hh_vacancy_description: $('[data-qa="vacancy-description"]').text() || null,
                 hh_vacancy_skills: $('[data-qa="bloko-tag bloko-tag_inline skills-element"]').map((i, el) => $(el).text()).get() || null,
-                hh_vacancy_logo: $('img.vacancy-company-logo-image-redesigned').attr('src') || null,
+                hh_vacancy_logo: $('img.vacancy-company-logo-image-redesigned').attr('src') || 'https://fakeimg.pl/200x200/cccccc/909090?text=No+Logo',
                 hh_vacancy_company_name: $('a[data-qa="vacancy-company-name"]').first().text() || null,
                 hh_vacancy_company_url: "https://hh.ru"+$('a[data-qa="vacancy-company-name"]').attr('href') || null,
                 hh_vacancy_address: $('[data-qa="vacancy-view-raw-address"]').first().text() || null,

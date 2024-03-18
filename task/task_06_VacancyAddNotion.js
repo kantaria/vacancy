@@ -124,14 +124,14 @@ async function task_06_VacancyAddNotion(vacancy) {
         'Phone': {
           rich_text: [{
             text: {
-              content: (vacancy.details.company_phones ? vacancy.details.company_phones.join(', ') : null).slice(0, 2000)
+              content: (vacancy.details.company_phones ? vacancy.details.company_phones.join(', ') : null)
             }
           }],
         },
         'Emails': {
           rich_text: [{
             text: {
-              content: (vacancy.details.company_emails ? vacancy.details.company_emails.join(', ') : null).slice(0, 2000)
+              content: (vacancy.details.company_emails ? vacancy.details.company_emails.join(', ') : null)
             }
           }],
         }

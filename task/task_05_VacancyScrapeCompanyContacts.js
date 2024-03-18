@@ -83,8 +83,10 @@ async function task_05_VacancyScrapeCompanyContacts(details) {
 
   try {
     const vacancyData = vacancy; // Получаем данные вакансии из тела запроса
+    vacancyData.notionStatus = true; // Add notionStatus property
     const vacancySave = new Vacancy(vacancyData); // Создаем новый экземпляр модели Vacancy с полученными данными
     await vacancySave.save(); // Сохраняем вакансию в базу данных
+    
     await task_06_VacancyAddNotion(vacancy); // Добавляем вакансию в Notion
     } catch (error) {
         console.error('Ошибка при добавлении вакансии:', error);

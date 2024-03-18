@@ -4,6 +4,8 @@ const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
 const { createSingleBar } = require('../config/progressBarConfig');
 const task_04_VacancyCollectLinks = require('./task_04_VacancyCollectLinks');
+const task_06_VacancyAddNotion = require('./task_06_VacancyAddNotion');
+const Vacancy = require('../models/Vacancy');
 
 
 function findCompanyFieldOfActivity($) {
@@ -36,7 +38,26 @@ async function task_03_VacancyUpdateInfoCompanyDetails(details, showProgressBar 
         progressBar.update(100); // Завершаем прогресс после обработки данных
         progressBar.stop(); // Останавливаем прогресс-бар
 
-        await task_04_VacancyCollectLinks(vacancyDetails);
+        if (vacancyDetails.details.hh_company_url) {
+            await task_04_VacancyCollectLinks(vacancyDetails);
+        } else {
+            try {
+                const vacancyData = vacancyDetails; // Получаем данные вакансии из тела запроса
+                vacancyData.notionStatus = true;
+                vacancyData.details.hh_company_url = 'null'; // Add notionStatus property
+                vacancyData.details.hh_company_field_of_activity = null;
+                vacancyData.details.hh_company_description = null;
+                vacancyData.details.contactLinks = null; // Add notionStatus property
+                vacancyData.details.company_phones = []; // Add notionStatus property
+                vacancyData.details.company_emails = []; // Add notionStatus property
+                const vacancySave = new Vacancy(vacancyData); // Создаем новый экземпляр модели Vacancy с полученными данными
+                await vacancySave.save(); // Сохраняем вакансию в базу данных
+                await task_06_VacancyAddNotion(vacancyDetails); // Добавляем вакансию в Notion
+                console.log('Вакансия сохранена в базу данных БЕЗ деталей о компании');
+            } catch (error) {
+                console.error('Ошибка при добавлении вакансии:', error);
+            }
+        }
         return vacancyDetails.details; // Возвращаем обновлённые детали вакансии
     } catch (error) {
         console.error(error);
@@ -46,6 +67,7 @@ async function task_03_VacancyUpdateInfoCompanyDetails(details, showProgressBar 
             hh_company_field_of_activity: null,
             hh_company_description: null,
         };
+
         return vacancyDetails.details;
     }
 }
