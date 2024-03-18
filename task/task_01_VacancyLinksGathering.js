@@ -1,11 +1,12 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
-const cliProgress = require('cli-progress');
+const { createSingleBar } = require('../config/progressBarConfig');
 const task_02_VacancyUpdateInfo = require('./task_02_VacancyUpdateInfo');
 
 const BASE_URL = process.env.BASE_URL;
 const headers = getHeaders();
+const progressBar = createSingleBar();
 
 async function fetchWithRetry(url, attempts = 3) {
     try {
@@ -37,7 +38,6 @@ async function task_01_VacancyLinksGathering(searchQuery) {
     const pages = parseInt(process.env.MAX_PAGES, 10);
     console.log(`Начало сбора ссылок по запросу: "${searchQuery}"...`);
 
-    const progressBar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
     progressBar.start(pages, 0);
 
     for (let page = 1; page <= pages; page++) {
