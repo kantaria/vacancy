@@ -3,14 +3,13 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
 
-// Modify the function to accept $ as a parameter
 function findCompanyFieldOfActivity($) {
     let result = null;
     const sidebarHeaderColorElements = $('[data-qa="sidebar-header-color"]');
     sidebarHeaderColorElements.each(function () {
         if ($(this).text().trim() === "Сферы деятельности") {
             result = $(this).next().text().trim().split(',').map(item => item.trim());
-            return false; // Break the loop
+            return false;
         }
     });
     return result;
@@ -23,26 +22,22 @@ async function task_03_VacancyUpdateInfoCompanyDetails(details) {
         const { data } = await axios.get(vacancyDetails.details.hh_vacancy_company_url, { headers: getHeaders() });
         const $ = cheerio.load(data);
 
-        const companyDetails = {
-            hh_company_url: $('[data-qa="sidebar-company-site"]').text().trim() || null,
-            // Pass $ to findCompanyFieldOfActivity
-            hh_company_field_of_activity: findCompanyFieldOfActivity($) || null,
-            hh_company_description: $('[data-qa="company-description-text"]').html() || null,
-        };
+        // Извлекаем информацию о компании и добавляем её непосредственно в объект details
+        vacancyDetails.details.hh_company_url = $('[data-qa="sidebar-company-site"]').text().trim() || null;
+        vacancyDetails.details.hh_company_field_of_activity = findCompanyFieldOfActivity($) || null;
+        vacancyDetails.details.hh_company_description = $('[data-qa="company-description-text"]').html() || null;
 
-        vacancyDetails.companyDetails = companyDetails; // Добавляем companyDetails как подобъект vacancyDetails
-
-        // console.log(vacancyDetails);
-        return companyDetails;
+        console.log(vacancyDetails)
+        return vacancyDetails.details; // Возвращаем обновлённые детали вакансии
     } catch (error) {
         console.error(error);
-        // В случае ошибки можно также добавить структуру ошибки
-        vacancyDetails.error = {
+        // В случае ошибки добавляем информацию об ошибке непосредственно в объект details
+        vacancyDetails.details.error = {
             hh_company_url: null,
             hh_company_field_of_activity: null,
             hh_company_description: null,
         };
-        return vacancyDetails;
+        return vacancyDetails.details;
     }
 }
 
