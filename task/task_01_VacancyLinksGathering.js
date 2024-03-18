@@ -13,7 +13,7 @@ async function fetchWithRetry(url, attempts = 3) {
   } catch (error) {
     if (attempts <= 1) {
       console.warn('Достигнуто максимальное количество попыток запроса.');
-      return null; // Или выбрасываем ошибку, если это критично для вашего случая
+      return null;
     }
     console.warn(`Ошибка запроса. Осталось попыток: ${attempts - 1}. Повторная попытка...`);
     return await fetchWithRetry(url, attempts - 1);
@@ -42,8 +42,12 @@ async function task_01_VacancyLinksGathering(searchQuery) {
     const formattedSearchQuery = searchQuery.replace(/\s+/g, '+');
     const pages = parseInt(process.env.MAX_PAGES, 10);
 
-    const progressBar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-    console.log('Начало сбора ссылок...');
+    // Выводим информацию о начале сбора ссылок с указанием запроса
+    console.log(`Начало сбора ссылок по запросу: "${searchQuery}"...`);
+
+    const progressBar = new cliProgress.SingleBar({
+      format: 'Прогресс |{bar}| {percentage}% | ETA: {eta_formatted} | {value}/{total}',
+    }, cliProgress.Presets.shades_classic);
     progressBar.start(pages, 0);
 
     for (let page = 1; page <= pages; page++) {
@@ -52,20 +56,20 @@ async function task_01_VacancyLinksGathering(searchQuery) {
       if (response) {
         const links = await getLinks(response.data);
         allLinks.push(...links);
-        progressBar.update(page);
       } else {
         console.warn(`Пропускаем страницу ${page} из-за ошибок запроса.`);
-        progressBar.update(page);
       }
+      progressBar.update(page);
     }
 
     progressBar.stop();
-    console.log(`Всего собрано ${allLinks.length} ссылок.`);
+    console.log(`Всего собрано ${allLinks.length} ссылок по запросу: "${searchQuery}".`);
     return allLinks;
   } catch (error) {
     console.error(`Ошибка в task_01_VacancyLinksGathering: ${error}`);
     throw error;
   }
 }
+
 
 module.exports = { task_01_VacancyLinksGathering };
