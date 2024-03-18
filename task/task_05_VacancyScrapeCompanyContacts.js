@@ -2,6 +2,8 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
 const asyncLimiter = require('../utils/asyncLimiter');
+const Vacancy = require('../models/Vacancy');
+const task_06_VacancyAddNotion = require('./task_06_VacancyAddNotion');
 
 const fetchContacts = async (url) => {
   try {
@@ -49,6 +51,7 @@ const extractContacts = ($) => {
 async function task_05_VacancyScrapeCompanyContacts(details) {
   console.log("СТАРТ ПРОЦЕССА");
   let vacancy = details;
+
   // Инициализируем как Set для уникальности
   vacancy.details.company_phones = new Set();
   vacancy.details.company_emails = new Set();
@@ -78,8 +81,15 @@ async function task_05_VacancyScrapeCompanyContacts(details) {
   vacancy.details.company_phones = [...vacancy.details.company_phones];
   vacancy.details.company_emails = [...vacancy.details.company_emails];
 
-  console.log(`Вакансия с URL ${vacancy.details.hh_company_url} обновлена. Контактная информация сохранена.`);
-  console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" + JSON.stringify(vacancy, null, 2) + "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+  try {
+    const vacancyData = vacancy; // Получаем данные вакансии из тела запроса
+    const vacancySave = new Vacancy(vacancyData); // Создаем новый экземпляр модели Vacancy с полученными данными
+    await vacancySave.save(); // Сохраняем вакансию в базу данных
+    await task_06_VacancyAddNotion(vacancy); // Добавляем вакансию в Notion
+    } catch (error) {
+        console.error('Ошибка при добавлении вакансии:', error);
+    }
+  // Save vacancy to DB
 }
 
 module.exports = task_05_VacancyScrapeCompanyContacts;

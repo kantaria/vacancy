@@ -5,7 +5,6 @@ const VacancySchema = new mongoose.Schema({
   url: String,
   vacancy_id: String,
   searchRequest: String,
-  cycleId: String,
   notionStatus: { type: Boolean, default: false },
   details: {
     hh_vacancy_title: String,

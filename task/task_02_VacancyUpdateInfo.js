@@ -5,12 +5,13 @@ const extractHighestSalary = require('../utils/extractHighestSalary');
 const extractCurrencySymbol = require('../utils/extractCurrencySymbol');
 const task_03_VacancyUpdateInfoCompanyDetails = require('./task_03_VacancyUpdateInfoCompanyDetails');
 const { createMultiBar } = require('../config/progressBarConfig');
+const uniqid = require('uniqid');
 
 // Создаём инстанс MultiBar вне функции, чтобы его состояние было общим для всех вызовов функций
 const multiBar = createMultiBar();
 let globalBar; // Глобальный прогресс-бар, который будет отображать общий прогресс
 
-async function fetchVacancyDetails(url, headers) {
+async function fetchVacancyDetails(url, searchQuery) {
     // Передаем bar как аргумент функции для индивидуального отслеживания прогресса
     const bar = multiBar.create(1, 0, { name: url.slice(0, 50) + '...' });
     try {
@@ -18,6 +19,8 @@ async function fetchVacancyDetails(url, headers) {
         const $ = cheerio.load(data);
             // Создаем объект деталей вакансии...
             const details = {
+                vacancy_id: uniqid.time(),
+                searchRequest: searchQuery,
                 hh_vacancy_title: $('h1[data-qa="vacancy-title"]').text() || null,
                 hh_vacancy_salary: extractHighestSalary($('span[data-qa="vacancy-salary-compensation-type-net"]').text()),
                 hh_vacancy_currency: extractCurrencySymbol($('span[data-qa="vacancy-salary-compensation-type-net"]').text()) || null,
@@ -42,12 +45,12 @@ async function fetchVacancyDetails(url, headers) {
         }
     }
     
-    const task_02_VacancyUpdateInfo = async (urls) => {
+    const task_02_VacancyUpdateInfo = async (urls, searchQuery) => {
         // Инициализируем глобальный прогресс-бар с общим количеством вакансий
         globalBar = multiBar.create(urls.length, 0, { name: 'Total Progress' });
     
         for (const url of urls) {
-            await fetchVacancyDetails(url, getHeaders());
+            await fetchVacancyDetails(url, searchQuery);
         }
         // multiBar.stop() уже вызовется автоматически при завершении всех баров, так что явно вызывать его здесь не нужно
         console.log('All URLs processed.');
