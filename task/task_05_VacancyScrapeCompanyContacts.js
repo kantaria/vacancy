@@ -49,7 +49,6 @@ const extractContacts = ($) => {
 };
 
 async function task_05_VacancyScrapeCompanyContacts(details) {
-  console.log("СТАРТ ПРОЦЕССА");
   let vacancy = details;
 
   // Инициализируем как Set для уникальности

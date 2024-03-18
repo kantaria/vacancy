@@ -2,11 +2,11 @@
 const mongoose = require('mongoose');
 
 const VacancySchema = new mongoose.Schema({
-  url: String,
   vacancy_id: String,
-  searchRequest: String,
   notionStatus: { type: Boolean, default: false },
   details: {
+    searchRequest: String,
+    globalUrl: String,
     hh_vacancy_title: String,
     hh_vacancy_salary: String,
     hh_vacancy_currency: String,

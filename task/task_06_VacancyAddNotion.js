@@ -10,9 +10,6 @@ const databaseId = process.env.NOTION_DATABASE_ID_TESTING;
 
 
 async function task_06_VacancyAddNotion(vacancy) {
-  console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-  console.log(vacancy)
-  console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
   try {
     await notion.pages.create({
       parent: {

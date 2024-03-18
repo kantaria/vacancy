@@ -1,6 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
+const Vacancy = require('../models/Vacancy');
 const extractHighestSalary = require('../utils/extractHighestSalary');
 const extractCurrencySymbol = require('../utils/extractCurrencySymbol');
 const task_03_VacancyUpdateInfoCompanyDetails = require('./task_03_VacancyUpdateInfoCompanyDetails');
@@ -19,6 +20,7 @@ async function fetchVacancyDetails(url, searchQuery) {
         const $ = cheerio.load(data);
             // Создаем объект деталей вакансии...
             const details = {
+                globalUrl: url,
                 vacancy_id: uniqid.time(),
                 searchRequest: searchQuery,
                 hh_vacancy_title: $('h1[data-qa="vacancy-title"]').text() || null,
@@ -48,11 +50,19 @@ async function fetchVacancyDetails(url, searchQuery) {
     const task_02_VacancyUpdateInfo = async (urls, searchQuery) => {
         // Инициализируем глобальный прогресс-бар с общим количеством вакансий
         globalBar = multiBar.create(urls.length, 0, { name: 'Total Progress' });
-    
+
         for (const url of urls) {
-            await fetchVacancyDetails(url, searchQuery);
+        // Проверяем, существует ли уже запись с таким URL в базе данных
+        const existingVacancy = await Vacancy.findOne({ 'details.globalUrl': url });
+        if (existingVacancy) {
+            console.log("Запись уже ранее добавлена в базу данных: " + url);
+            globalBar.increment(); // Обновляем глобальный прогресс-бар, чтобы отразить пропуск этой вакансии
+            continue; // Пропускаем текущую итерацию цикла и переходим к следующему URL
         }
-        // multiBar.stop() уже вызовется автоматически при завершении всех баров, так что явно вызывать его здесь не нужно
+    
+        // Если записи с таким URL нет, продолжаем обработку
+        await fetchVacancyDetails(url, searchQuery);
+        }
         console.log('All URLs processed.');
         return true;
     };

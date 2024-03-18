@@ -46,9 +46,6 @@ async function task_01_VacancyLinksGathering(searchQuery) {
         if (response) {
             const links = await getLinks(response.data);
             if (links.length > 0) {
-                // Отправка собранных ссылок на обработку в task_02 и ожидание результата
-                console.log(links);
-                console.log("~~~~~~~~~~~~ " + searchQuery + " ~~~~~~~~~~~~~");
                 await task_02_VacancyUpdateInfo( links, searchQuery );
             }
         } else {

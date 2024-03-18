@@ -14,7 +14,7 @@ async function task_04_VacancyCollectLinks(details) {
             const contactLinks = await fetchContactLinks(companyURL, domain);
             vacancy.details.contactLinks = contactLinks;
             await task_05_VacancyScrapeCompanyContacts(vacancy);
-            // console.log(`Собрано ${contactLinks.length} контактных ссылок для вакансии: ${JSON.stringify(vacancy.details, null, 2)}`);
+            console.log(`Собрано ${contactLinks.length} контактных ссылок для вакансии: ${JSON.stringify(vacancy.details, null, 2)}`);
         } catch (error) {
             console.error(`Ошибка при сборе контактных ссылок: ${error}`);
         }
