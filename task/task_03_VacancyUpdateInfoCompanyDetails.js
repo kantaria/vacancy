@@ -32,7 +32,7 @@ async function task_03_VacancyUpdateInfoCompanyDetails(details) {
 
         vacancyDetails.companyDetails = companyDetails; // Добавляем companyDetails как подобъект vacancyDetails
 
-        console.log(vacancyDetails);
+        // console.log(vacancyDetails);
         return companyDetails;
     } catch (error) {
         console.error(error);

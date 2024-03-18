@@ -1,21 +1,21 @@
-// task/task_02_VacancyUpdateInfo.js
 const axios = require('axios');
 const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
 const extractHighestSalary = require('../utils/extractHighestSalary');
 const extractCurrencySymbol = require('../utils/extractCurrencySymbol');
 const task_03_VacancyUpdateInfoCompanyDetails = require('./task_03_VacancyUpdateInfoCompanyDetails');
-const { createMultiBar } = require('../config/progressBarConfig'); // Импорт функции создания MultiBar
+const { createMultiBar } = require('../config/progressBarConfig');
 
-const multiBar = createMultiBar(); // Создание экземпляра MultiBar
+// Создаём инстанс MultiBar вне функции, чтобы его состояние было общим для всех вызовов функций
+const multiBar = createMultiBar();
+let globalBar; // Глобальный прогресс-бар, который будет отображать общий прогресс
 
-async function fetchVacancyDetails(url, headers, progressBar) {
-    const bar = progressBar.create(1, 0, { name: url.slice(0, 50) + '...' }); // Создаем индивидуальный прогресс-бар для каждой задачи
-    for (let attempt = 1; attempt <= 5; attempt++) {
-        try {
-            const { data } = await axios.get(url, { headers: getHeaders() });
-            const $ = cheerio.load(data);
-
+async function fetchVacancyDetails(url, headers) {
+    // Передаем bar как аргумент функции для индивидуального отслеживания прогресса
+    const bar = multiBar.create(1, 0, { name: url.slice(0, 50) + '...' });
+    try {
+        const { data } = await axios.get(url, { headers: getHeaders() });
+        const $ = cheerio.load(data);
             // Создаем объект деталей вакансии...
             const details = {
                 hh_vacancy_title: $('h1[data-qa="vacancy-title"]').text() || null,
@@ -31,28 +31,27 @@ async function fetchVacancyDetails(url, headers, progressBar) {
                 hh_vacancy_company_url: "https://hh.ru"+$('a[data-qa="vacancy-company-name"]').attr('href') || null,
                 hh_vacancy_address: $('[data-qa="vacancy-view-raw-address"]').first().text() || null,
             };
-
-            bar.increment(); // Завершаем прогресс для текущей задачи
+            bar.increment(); // Обновляем индивидуальный прогресс-бар
+            globalBar.increment(); // Важно! Обновляем глобальный прогресс-бар
             await task_03_VacancyUpdateInfoCompanyDetails(details);
             return details;
         } catch (error) {
-            console.error(`Attempt ${attempt} failed for URL ${url}: ${error}`);
-            if (attempt === 5) {
-                bar.stop(); // Останавливаем прогресс-бар в случае ошибки
-                return null;
-            }
+            console.error(`Failed for URL ${url}: ${error}`);
+            bar.stop(); // Останавливаем индивидуальный прогресс-бар в случае ошибки
+            return null;
         }
     }
-}
-
-const task_02_VacancyUpdateInfo = async (urls) => {
-    let promises = urls.map((url) => fetchVacancyDetails(url, getHeaders(), multiBar));
-
-    // Ожидаем выполнение всех промисов
-    await Promise.allSettled(promises);
-    multiBar.stop(); // Останавливаем MultiBar после обработки всех задач
-    console.log('All URLs processed.');
-    return true;
-};
-
-module.exports = task_02_VacancyUpdateInfo;
+    
+    const task_02_VacancyUpdateInfo = async (urls) => {
+        // Инициализируем глобальный прогресс-бар с общим количеством вакансий
+        globalBar = multiBar.create(urls.length, 0, { name: 'Total Progress' });
+    
+        for (const url of urls) {
+            await fetchVacancyDetails(url, getHeaders());
+        }
+        // multiBar.stop() уже вызовется автоматически при завершении всех баров, так что явно вызывать его здесь не нужно
+        console.log('All URLs processed.');
+        return true;
+    };
+    
+    module.exports = task_02_VacancyUpdateInfo;
