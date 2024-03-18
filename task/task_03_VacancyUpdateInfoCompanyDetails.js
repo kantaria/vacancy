@@ -3,8 +3,8 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
 const { createSingleBar } = require('../config/progressBarConfig');
-
 const task_04_VacancyCollectLinks = require('./task_04_VacancyCollectLinks');
+
 
 function findCompanyFieldOfActivity($) {
     let result = null;
