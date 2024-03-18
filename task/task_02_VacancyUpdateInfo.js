@@ -1,12 +1,17 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const cliProgress = require('cli-progress');
 const getHeaders = require('../config/headers');
 const extractHighestSalary = require('../utils/extractHighestSalary');
 const extractCurrencySymbol = require('../utils/extractCurrencySymbol');
 
+const multiBar = new cliProgress.MultiBar({
+  clearOnComplete: true,
+  hideCursor: true
+}, cliProgress.Presets.shades_classic);
 
-
-async function fetchVacancyDetails(url, headers) {
+async function fetchVacancyDetails(url, headers, progressBar) {
+  const bar = progressBar.create(100, 0); // Создаем индивидуальный прогресс-бар для каждой задачи
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       const { data } = await axios.get(url, { headers: getHeaders() });
@@ -27,35 +32,27 @@ async function fetchVacancyDetails(url, headers) {
         hh_vacancy_company_url: "https://hh.ru"+$('a[data-qa="vacancy-company-name"]').attr('href') || null,
         hh_vacancy_address: $('[data-qa="vacancy-view-raw-address"]').first().text() || null,
       };
-
-      return details; // Возвращаем детали вакансии
+      
+      bar.increment(100); // Завершаем прогресс для текущей задачи
+      return details;
     } catch (error) {
       console.error(`Attempt ${attempt} failed for URL ${url}: ${error}`);
       if (attempt === 5) {
-        return null; // Возвращаем null после всех попыток
+        bar.stop(); // Останавливаем прогресс-бар в случае ошибки
+        return null;
       }
     }
   }
 }
 
 const task_02_VacancyUpdateInfo = async (urls) => {
-  let urlsGen = [];
-  let promises = urls.map((url) => fetchVacancyDetails(url, getHeaders()));
+  let promises = urls.map((url) => fetchVacancyDetails(url, getHeaders(), multiBar));
 
   // Ожидаем выполнение всех промисов
-  const results = await Promise.allSettled(promises);
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled' && result.value !== null) {
-      console.log(`Result for URL ${urls[index]}:`, result.value);
-      urlsGen.push(result.value);
-    } else {
-      console.log(`Error processing URL ${urls[index]}:`, result.reason);
-    }
-  });
-
+  await Promise.allSettled(promises);
+  multiBar.stop(); // Останавливаем MultiBar после обработки всех задач
   console.log('All URLs processed.');
-  return urlsGen; // Возвращаем массив обработанных результатов
+  return true;
 };
-
 
 module.exports = task_02_VacancyUpdateInfo;
