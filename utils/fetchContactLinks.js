@@ -4,7 +4,6 @@ const getHeaders = require('../config/headers');
 const isValidLink = require('../utils/isValidLink');
 
 const fetchContactLinks = async (companyURL, domain, linksVisited = new Set(), links = [companyURL]) => {
-  console.log("start Fetching Contact Links");
   if (linksVisited.has(companyURL) || links.length >= 50) {
     return links;
   }
@@ -32,7 +31,7 @@ const fetchContactLinks = async (companyURL, domain, linksVisited = new Set(), l
     });
     return links;
   } catch (error) {
-    console.error("An error occurred: ", error.message);
+    // console.error("An error occurred: ", error.message);
     return links;
   }
 };

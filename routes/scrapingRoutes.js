@@ -40,4 +40,26 @@ router.post('/api/vacancies', async (req, res) => {
   }
 });
 
+router.get('/api/contact-links', async (req, res) => {
+  try {
+    const vacancies = await Vacancy.find({}, 'details.contactLinks -_id'); // Извлекаем только contactLinks из всех записей
+    const contactLinksArray = vacancies.map(v => v.details.contactLinks).flat(); // Преобразуем в одномерный массив
+    res.json(contactLinksArray);
+  } catch (error) {
+    console.error('Ошибка при получении contact links:', error);
+    res.status(500).send('Произошла ошибка при получении данных');
+  }
+});
+
+router.get('/api/company-url', async (req, res) => {
+  try {
+    const vacancies = await Vacancy.find({}, 'details.hh_company_url -_id'); // Извлекаем только contactLinks из всех записей
+    const companyUrlArray = vacancies.map(v => v.details.hh_company_url).flat(); // Преобразуем в одномерный массив
+    res.json(companyUrlArray);
+  } catch (error) {
+    console.error('Ошибка при получении contact links:', error);
+    res.status(500).send('Произошла ошибка при получении данных');
+  }
+});
+
 module.exports = router;

@@ -5,7 +5,6 @@ async function task_04_VacancyCollectLinks(details) {
     let vacancy = details;
 
     if (!vacancy.details.hh_company_url) {
-        console.log('Отсутствует ссылка на компанию: ' + vacancy.details.hh_company_url);
         return false;
     } else {
         try {
