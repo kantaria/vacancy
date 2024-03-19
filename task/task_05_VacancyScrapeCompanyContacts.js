@@ -5,35 +5,48 @@ const asyncLimiter = require('../utils/asyncLimiter');
 const Vacancy = require('../models/Vacancy');
 const task_06_VacancyAddNotion = require('./task_06_VacancyAddNotion');
 
-
 const fetchContacts = async (url) => {
   try {
     // Определите максимальный размер ответа в байтах
-    const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
-    
-    const { data } = await axios.get(url, {
-      headers: getHeaders(),
-      maxContentLength: MAX_SIZE,
-      maxBodyLength: MAX_SIZE,
+    const MAX_SIZE = 10 * 1024 * 1024; // 25 MB
+
+    // Создаем Promise, который отклоняется через 3 секунды
+    const timeoutPromise = new Promise((resolve, reject) => {
+      setTimeout(() => {
+        reject(new Error('Превышено время ожидания запроса'));
+      }, 3000); // 3 секунды в миллисекундах
     });
 
-    const $ = cheerio.load(data);
-    const contacts = extractContacts($);
+    // Используем Promise.race для гонки между запросом и таймаутом
+    const response = await Promise.race([
+      axios.get(url, {
+        headers: getHeaders(), // Предполагаем, что getHeaders() определена где-то в вашем коде
+        maxContentLength: MAX_SIZE,
+        maxBodyLength: MAX_SIZE,
+      }),
+      timeoutPromise
+    ]);
+
+    // Обрабатываем ответ
+    const $ = cheerio.load(response.data);
+    const contacts = extractContacts($); // Предполагаем, что extractContacts($) определена где-то в вашем коде
     return contacts;
   } catch (error) {
-    // Проверяем ошибку на превышение максимального размера
     if (error.response && error.response.status === 413) {
       console.error('Ошибка: Размер полученного ответа превышает установленный лимит.');
+    } else if (error.message === 'Превышено время ожидания запроса') {
+      console.error('Ошибка: Время ожидания запроса превысило 3 секунды.');
     } else {
-      console.error('Ошибка при извлечении контактов:');
+      console.error('Ошибка при извлечении контактов:', error.message);
     }
-    
+
     return {
       phones: [],
       emails: []
     };
   }
 };
+
 
 const extractContacts = ($) => {
   const phones = new Set(); // Используем Set для уникальности
