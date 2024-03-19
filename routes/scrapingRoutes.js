@@ -62,4 +62,16 @@ router.get('/api/company-url', async (req, res) => {
   }
 });
 
+
+router.get('/api/company-details', async (req, res) => {
+  try {
+    const vacancies = await Vacancy.find(); // Извлекаем все записи вакансий
+    const detailsArray = vacancies.map(vacancy => vacancy); // Преобразуем в массив деталей
+    res.json(detailsArray); // Возвращаем массив деталей в ответе
+  } catch (error) {
+    console.error('Ошибка при получении деталей вакансий:', error);
+    res.status(500).send('Произошла ошибка при получении деталей вакансий');
+  }
+});
+
 module.exports = router;

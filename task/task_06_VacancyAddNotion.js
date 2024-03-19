@@ -93,7 +93,7 @@ async function task_06_VacancyAddNotion(vacancy) {
           url: vacancy.url || null,
         },
         'Presentation': {
-          url: `https://hh.ru${vacancy.details.hh_vacancy_company_url}` || '',
+          url: `${vacancy.details.hh_vacancy_company_url}` || '',
         },
         'Address': {
           rich_text: [{

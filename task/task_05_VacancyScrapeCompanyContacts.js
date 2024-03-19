@@ -5,13 +5,29 @@ const asyncLimiter = require('../utils/asyncLimiter');
 const Vacancy = require('../models/Vacancy');
 const task_06_VacancyAddNotion = require('./task_06_VacancyAddNotion');
 
+
 const fetchContacts = async (url) => {
   try {
-    const { data } = await axios.get(url, { headers: getHeaders() });
+    // Определите максимальный размер ответа в байтах
+    const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+    
+    const { data } = await axios.get(url, {
+      headers: getHeaders(),
+      maxContentLength: MAX_SIZE,
+      maxBodyLength: MAX_SIZE,
+    });
+
     const $ = cheerio.load(data);
     const contacts = extractContacts($);
     return contacts;
   } catch (error) {
+    // Проверяем ошибку на превышение максимального размера
+    if (error.response && error.response.status === 413) {
+      console.error('Ошибка: Размер полученного ответа превышает установленный лимит.');
+    } else {
+      console.error('Ошибка при извлечении контактов:');
+    }
+    
     return {
       phones: [],
       emails: []
@@ -62,15 +78,18 @@ async function task_05_VacancyScrapeCompanyContacts(details) {
 
   let processedLinks = 0;
   for (const batch of linkBatches) {
+    // heapdump.writeSnapshot('./logs/' + Date.now() + '.heapsnapshot');
     console.log(`Обработка пакета ссылок для вакансии ${vacancy.details.hh_company_url}. Количество ссылок в пакете: ${batch.length}`);
     
     const tasks = batch.map(link => async () => await fetchContacts(link));
-    const contactsBatch = await asyncLimiter(tasks, 5);
+    let contactsBatch = await asyncLimiter(tasks, 5);
     
     contactsBatch.forEach(result => {
       result.phones?.forEach(phone => vacancy.details.company_phones.add(phone));
       result.emails?.forEach(email => vacancy.details.company_emails.add(email));
     });
+    // heapdump.writeSnapshot('./logs/' + Date.now() + '.heapsnapshot');
+    contactsBatch = null;
 
     processedLinks += batch.length;
     console.log(`Обработано ссылок для вакансии ${vacancy.details.hh_company_url}: ${processedLinks}/${vacancy.details.contactLinks.length}`);
@@ -85,7 +104,6 @@ async function task_05_VacancyScrapeCompanyContacts(details) {
     vacancyData.notionStatus = true; // Add notionStatus property
     const vacancySave = new Vacancy(vacancyData); // Создаем новый экземпляр модели Vacancy с полученными данными
     await vacancySave.save(); // Сохраняем вакансию в базу данных
-    
     await task_06_VacancyAddNotion(vacancy); // Добавляем вакансию в Notion
     } catch (error) {
         console.error('Ошибка при добавлении вакансии:', error);
