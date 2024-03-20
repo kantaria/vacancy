@@ -91,5 +91,15 @@ router.get('/api/remove-duplicates', async (req, res) => {
   }
 });
 
+router.get('/api/company-skills', async (req, res) => {
+  try {
+    const vacancies = await Vacancy.find({}, 'details.hh_vacancy_skills -_id'); // Извлекаем только contactLinks из всех записей
+    const vacancySkills = vacancies.map(v => v.details.hh_vacancy_skills).flat(); // Преобразуем в одномерный массив
+    res.json(vacancySkills);
+  } catch (error) {
+    console.error('Ошибка при получении skills:', error);
+    res.status(500).send('Произошла ошибка при получении данных');
+  }
+});
 
 module.exports = router;
