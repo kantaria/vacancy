@@ -52,16 +52,17 @@ async function fetchVacancyDetails(url, searchQuery) {
         globalBar = multiBar.create(urls.length, 0, { name: 'Total Progress' });
 
         for (const url of urls) {
-        // Проверяем, существует ли уже запись с таким URL в базе данных
-        const existingVacancy = await Vacancy.findOne({ 'details.globalUrl': url });
-        if (existingVacancy) {
-            console.log("Запись уже ранее добавлена в базу данных: " + url);
-            globalBar.increment(); // Обновляем глобальный прогресс-бар, чтобы отразить пропуск этой вакансии
-            continue; // Пропускаем текущую итерацию цикла и переходим к следующему URL
-        }
+            // Проверяем, существует ли уже запись с таким URL в базе данных
+            const urlBasePart = url.split('?')[0]; // Получаем часть URL до вопросительного знака
+            const existingVacancy = await Vacancy.findOne({ 'details.globalUrl': { $regex: `^${urlBasePart}` } });
+            if (existingVacancy) {
+                console.log("Запись уже ранее добавлена в базу данных: " + url);
+                globalBar.increment(); // Обновляем глобальный прогресс-бар, чтобы отразить пропуск этой вакансии
+                continue; // Пропускаем текущую итерацию цикла и переходим к следующему URL
+            }
     
-        // Если записи с таким URL нет, продолжаем обработку
-        await fetchVacancyDetails(url, searchQuery);
+            // Если записи с таким URL нет, продолжаем обработку
+            await fetchVacancyDetails(url, searchQuery);
         }
         console.log('All URLs processed.');
         return true;

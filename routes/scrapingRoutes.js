@@ -1,8 +1,9 @@
 // routes/scrapingRoutes.js
 const express = require('express');
 const router = express.Router();
-const { VacancyLinksGathering_01 } = require('../services/VacancyLinksGathering_01');
 const Vacancy = require('../models/Vacancy');
+const { VacancyLinksGathering_01 } = require('../services/VacancyLinksGathering_01');
+const { removeVacancyDuplicates } = require('../services/RemoveVacancyDuplicates');
 
 router.get('/api/start-scraping', (req, res) => {
   const {
@@ -53,15 +54,18 @@ router.get('/api/contact-links', async (req, res) => {
 
 router.get('/api/company-url', async (req, res) => {
   try {
-    const vacancies = await Vacancy.find({}, 'details.hh_company_url -_id'); // Извлекаем только contactLinks из всех записей
-    const companyUrlArray = vacancies.map(v => v.details.hh_company_url).flat(); // Преобразуем в одномерный массив
+    const vacancies = await Vacancy.find({}, 'details.hh_company_url -_id'); // Извлекаем только hh_company_url из всех записей
+    // Преобразуем в одномерный массив, фильтруем null значения и удаляем дубликаты
+    const companyUrlArray = [...new Set(vacancies
+      .map(v => v.details.hh_company_url)
+      .filter(url => url !== "null")
+      .flat())];
     res.json(companyUrlArray);
   } catch (error) {
-    console.error('Ошибка при получении contact links:', error);
+    console.error('Ошибка при получении company urls:', error);
     res.status(500).send('Произошла ошибка при получении данных');
   }
 });
-
 
 router.get('/api/company-details', async (req, res) => {
   try {
@@ -73,5 +77,19 @@ router.get('/api/company-details', async (req, res) => {
     res.status(500).send('Произошла ошибка при получении деталей вакансий');
   }
 });
+
+router.get('/api/remove-duplicates', async (req, res) => {
+  try {
+      const { deletedCount, deletedUrls } = await removeVacancyDuplicates();
+      res.status(200).json({
+          message: `Успешно удалено дубликатов вакансий: ${deletedCount}`,
+          deletedUrls: deletedUrls
+      });
+  } catch (error) {
+      console.error('Ошибка при удалении дубликатов вакансий:', error);
+      res.status(500).send('Произошла ошибка при удалении дубликатов вакансий');
+  }
+});
+
 
 module.exports = router;
