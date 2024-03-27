@@ -1,4 +1,4 @@
-const Vacancy = require('../models/Vacancy');
+const Vacancy = require('../models/vacancy');
 
 async function removeVacancyDuplicates() {
     const vacancies = await Vacancy.find();

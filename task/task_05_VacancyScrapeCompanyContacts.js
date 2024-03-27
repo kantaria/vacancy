@@ -2,7 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
 const asyncLimiter = require('../utils/asyncLimiter');
-const Vacancy = require('../models/Vacancy');
+const Vacancy = require('../models/vacancy');
 const task_06_VacancyAddNotion = require('./task_06_VacancyAddNotion');
 
 const fetchContacts = async (url) => {

@@ -5,7 +5,7 @@ const getHeaders = require('../config/headers');
 const { createSingleBar } = require('../config/progressBarConfig');
 const task_04_VacancyCollectLinks = require('./task_04_VacancyCollectLinks');
 const task_06_VacancyAddNotion = require('./task_06_VacancyAddNotion');
-const Vacancy = require('../models/Vacancy');
+const Vacancy = require('../models/vacancy');
 
 
 function findCompanyFieldOfActivity($) {
