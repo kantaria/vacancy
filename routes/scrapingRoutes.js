@@ -1,7 +1,7 @@
 // routes/scrapingRoutes.js
 const express = require('express');
 const router = express.Router();
-const Vacancy = require('../models/Vacancy');
+const Vacancy = require('../models/vacancy');
 const { VacancyLinksGathering_01 } = require('../services/VacancyLinksGathering_01');
 const { removeVacancyDuplicates } = require('../services/RemoveVacancyDuplicates');
 
