@@ -28,4 +28,4 @@ const VacancySchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-module.exports = mongoose.model('vacancy', VacancySchema);
+module.exports = mongoose.model('Vacancy', VacancySchema);
