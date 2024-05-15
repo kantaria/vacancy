@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const VacancySchema = new mongoose.Schema({
   vacancy_id: String,
   notionStatus: { type: Boolean, default: false },
+  userIP: String, // Добавляем новое поле для IP пользователя
+  scrapingInProgress: { type: Boolean, default: false }, // Флаг, показывающий, идет ли сейчас процесс сбора данных
   details: {
     searchRequest: String,
     globalUrl: String,

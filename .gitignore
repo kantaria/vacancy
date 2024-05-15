@@ -353,3 +353,4 @@ $RECYCLE.BIN/
 *.lnk
 *.json
 *.lock
+!package.json
