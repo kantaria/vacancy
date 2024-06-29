@@ -4,7 +4,8 @@ const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
 const { createSingleBar } = require('../config/progressBarConfig');
 const task_04_VacancyCollectLinks = require('./task_04_VacancyCollectLinks');
-const task_06_VacancyAddNotion = require('./task_06_VacancyAddNotion');
+// const task_06_VacancyAddNotion = require('./task_06_VacancyAddNotion'); // Закомментировано
+const task_07_VacancyAddGoogleSheet = require('./task_07_VacancyAddGoogleSheet');
 const Vacancy = require('../models/vacancy');
 
 
@@ -32,8 +33,6 @@ async function task_03_VacancyUpdateInfoCompanyDetails(details, showProgressBar 
 
         // Извлекаем информацию о компании и добавляем её непосредственно в объект details
         vacancyDetails.details.hh_company_url = $('[data-qa="sidebar-company-site"]').text().trim() || null;
-        vacancyDetails.details.hh_company_field_of_activity = findCompanyFieldOfActivity($) || null;
-        vacancyDetails.details.hh_company_description = $('[data-qa="company-description-text"]').html() || null;
 
         progressBar.update(100); // Завершаем прогресс после обработки данных
         progressBar.stop(); // Останавливаем прогресс-бар
@@ -43,16 +42,13 @@ async function task_03_VacancyUpdateInfoCompanyDetails(details, showProgressBar 
         } else {
             try {
                 const vacancyData = vacancyDetails; // Получаем данные вакансии из тела запроса
-                vacancyData.notionStatus = true;
-                vacancyData.details.hh_company_url = 'null'; // Add notionStatus property
-                vacancyData.details.hh_company_field_of_activity = null;
-                vacancyData.details.hh_company_description = null;
-                vacancyData.details.contactLinks = null; // Add notionStatus property
-                vacancyData.details.company_phones = []; // Add notionStatus property
-                vacancyData.details.company_emails = []; // Add notionStatus property
+                vacancyData.details.hh_company_url = 'null'; 
+                vacancyData.details.contactLinks = null; 
+                vacancyData.details.company_emails = [];
                 const vacancySave = new Vacancy(vacancyData); // Создаем новый экземпляр модели Vacancy с полученными данными
                 await vacancySave.save(); // Сохраняем вакансию в базу данных
-                await task_06_VacancyAddNotion(vacancyDetails); // Добавляем вакансию в Notion
+                // await task_06_VacancyAddNotion(vacancyDetails); // Закомментировано
+                await task_07_VacancyAddGoogleSheet(vacancyDetails); // Добавляем вакансию в Google Sheets
                 console.log('Вакансия сохранена в базу данных БЕЗ деталей о компании');
             } catch (error) {
                 console.error('Ошибка при добавлении вакансии:', error);
@@ -64,8 +60,6 @@ async function task_03_VacancyUpdateInfoCompanyDetails(details, showProgressBar 
         progressBar.stop();
         vacancyDetails.details.error = {
             hh_company_url: null,
-            hh_company_field_of_activity: null,
-            hh_company_description: null,
         };
 
         return vacancyDetails.details;

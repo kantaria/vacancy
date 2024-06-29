@@ -55,9 +55,6 @@ async function task_06_VacancyAddNotion(vacancy) {
         'Employment type': {
           multi_select: vacancy.details.hh_vacancy_view_employment_mode.map(type => ({ name: type })),
         },
-        'Contracts': {
-          multi_select: vacancy.details.hh_vacancy_view_accept_temporary.map(skill => ({ name: skill })),
-        },
         'Description': {
           rich_text: [{
             text: {
@@ -69,18 +66,6 @@ async function task_06_VacancyAddNotion(vacancy) {
           multi_select: vacancy.details.hh_vacancy_skills.map(skill => ({
             name: skill.replace(/,/g, ' ')
           })),
-        },
-        'Logo': {
-          type: 'files',
-          files: [
-            {
-              type: "external",
-              name: "Logo",
-              external: {
-                url: vacancy.details.hh_vacancy_logo || 'https://fakeimg.pl/500x500?text=No+Logo',
-              }
-            }
-          ]
         },
         'Company': {
           rich_text: [{
@@ -95,35 +80,8 @@ async function task_06_VacancyAddNotion(vacancy) {
         'Presentation': {
           url: `${vacancy.details.hh_vacancy_company_url}` || '',
         },
-        'Address': {
-          rich_text: [{
-            text: {
-              content: vacancy.details.hh_vacancy_address || ''
-            }
-          }],
-        },
         'Web Site': {
           url: `https://${vacancy.details.hh_company_url}` || '',
-        },
-        'Field of activity': {
-          multi_select: vacancy.details.hh_company_field_of_activity ? vacancy.details.hh_company_field_of_activity.map(activity => ({ name: activity })) : [],
-        },
-        'Presentation info': {
-          rich_text: [{
-            text: {
-              content: ((vacancy.details.hh_company_description || '') // Замена null на пустую строку
-                .replace(/<\/?[^>]+(>|$)/g, "") // Удаление HTML тегов
-                .replace(/&nbsp;/g, " ") // Замена &nbsp; на пробелы
-                .slice(0, 2000)) || '' // Обрезка до 2000 символов и обеспечение, что результат не null
-            }
-          }],
-        },
-        'Phone': {
-          rich_text: [{
-            text: {
-              content: (vacancy.details.company_phones ? vacancy.details.company_phones.join(', ') : null)
-            }
-          }],
         },
         'Emails': {
           rich_text: [{

@@ -3,6 +3,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const connectDB = require('./config/mongoDB');
 const scrapingRoutes = require('./routes/scrapingRoutes');
+const os = require('os');
 
 // Создаем экземпляр приложения Express
 const app = express();
@@ -25,8 +26,22 @@ app.get('/', (req, res) => {
   res.send('Welcome to our API!');
 });
 
+// Функция для получения IP-адреса
+function getServerIP() {
+  const interfaces = os.networkInterfaces();
+  for (let iface in interfaces) {
+    for (let alias of interfaces[iface]) {
+      if (alias.family === 'IPv4' && !alias.internal) {
+        return alias.address;
+      }
+    }
+  }
+  return 'IP not found';
+}
+
 // Запускаем сервер
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3002;
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  const ip = process.env.SERVER_IP;
+  console.log(`Server is running on http://${ip}:${port}`);
 });
