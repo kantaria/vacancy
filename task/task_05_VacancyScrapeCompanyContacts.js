@@ -1,60 +1,70 @@
-const axios = require('axios');
 const cheerio = require('cheerio');
+const axios = require('axios');
 const getHeaders = require('../config/headers');
-const asyncLimiter = require('../utils/asyncLimiter');
+const { asyncLimiter, fetchContactLinks } = require('../utils/asyncUtils');
 const Vacancy = require('../models/vacancy');
 const task_07_VacancyAddGoogleSheet = require('./task_07_VacancyAddGoogleSheet');
+const handleError = require('../utils/errorHandler');
+const log = require('../utils/logger');
+
+const initialStatus = {
+  Preparation: true,
+  ReadyToApply: false,
+  Applied: false,
+  TestTask: false,
+  Interview: false,
+  AwaitingResponse: false,
+  Offered: false,
+  Signed: false,
+  Trash: false,
+  Rejected: false,
+};
 
 const fetchContacts = async (url) => {
   try {
-    const { data } = await axios.get(url, { 
+    const { data } = await axios.get(url, {
       headers: getHeaders(),
-      httpsAgent: new (require('https')).Agent({ rejectUnauthorized: false })
+      httpsAgent: new (require('https')).Agent({ rejectUnauthorized: false }),
     });
     const $ = cheerio.load(data);
     const contacts = extractContacts($);
     return contacts;
   } catch (error) {
+    handleError(error, 'Error fetching contacts');
     return {
-      phones: [],
-      emails: []
+      emails: [],
     };
   }
 };
 
 const extractContacts = ($) => {
-  const phones = new Set(); // Используем Set для уникальности
   const emails = new Set();
-  const phoneRegex = /\+\d{1,3}[- ]?(?:\d{1,4}[- ]?)?\d{1,4}[- ]?\d{1,4}[- ]?\d{1,4}/g;
   const emailRegex = /\b[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}\b/g;
 
   const text = $('body').text();
-  let phoneMatch;
   let emailMatch;
-
-  while ((phoneMatch = phoneRegex.exec(text)) !== null) {
-    // Удаляем пробелы из номеров телефонов
-    const cleanedPhone = phoneMatch[0].replace(/[\s-]/g, '');
-    // Добавляем в Set только если длина номера >= 9
-    if (cleanedPhone.length >= 9) {
-      phones.add(cleanedPhone);
-    }
-  }
 
   while ((emailMatch = emailRegex.exec(text)) !== null) {
     emails.add(emailMatch[0]);
   }
 
   return {
-    phones: [...phones],
-    emails: [...emails]
+    emails: [...emails],
   };
 };
 
 async function task_05_VacancyScrapeCompanyContacts(details) {
   let vacancy = details;
 
-  // Инициализируем как Set для уникальности
+  const existingCompanyUrls = new Set(
+    (await Vacancy.find({}, 'details.hh_company_url')).map((vacancy) => vacancy.details.hh_company_url)
+  );
+
+  if (existingCompanyUrls.has(vacancy.details.hh_company_url)) {
+    log(`Запись с URL компании уже ранее добавлена в базу данных: ${vacancy.details.hh_company_url}`);
+    return;
+  }
+
   vacancy.details.company_emails = new Set();
 
   const linkBatches = [];
@@ -64,32 +74,38 @@ async function task_05_VacancyScrapeCompanyContacts(details) {
 
   let processedLinks = 0;
   for (const batch of linkBatches) {
-    console.log(`Обработка пакета ссылок для вакансии ${vacancy.details.hh_company_url}. Количество ссылок в пакете: ${batch.length}`);
+    log(`Обработка пакета ссылок для вакансии ${vacancy.details.hh_company_url}. Количество ссылок в пакете: ${batch.length}`);
 
-    const tasks = batch.map(link => async () => await fetchContacts(link));
+    const tasks = batch.map((link) => async () => await fetchContacts(link));
     const contactsBatch = await asyncLimiter(tasks, 5);
 
-    contactsBatch.forEach(result => {
-      result.emails?.forEach(email => vacancy.details.company_emails.add(email));
+    contactsBatch.forEach((result) => {
+      result.emails?.forEach((email) => vacancy.details.company_emails.add(email));
     });
 
     processedLinks += batch.length;
-    console.log(`Обработано ссылок для вакансии ${vacancy.details.hh_company_url}: ${processedLinks}/${vacancy.details.contactLinks.length}`);
+    log(`Обработано ссылок для вакансии ${vacancy.details.hh_company_url}: ${processedLinks}/${vacancy.details.contactLinks.length}`);
   }
 
-  // Конвертируем Set обратно в массивы
   vacancy.details.company_emails = [...vacancy.details.company_emails];
 
-  try {
-    const vacancyData = vacancy; // Получаем данные вакансии из тела запроса
-    const vacancySave = new Vacancy(vacancyData); // Создаем новый экземпляр модели Vacancy с полученными данными
-    await vacancySave.save(); // Сохраняем вакансию в базу данных
+  log('company_emails:', vacancy.details.company_emails);
 
-    await task_07_VacancyAddGoogleSheet(vacancy); // Добавляем вакансию в Google Sheets
-  } catch (error) {
-    console.error('Ошибка при добавлении вакансии:', error);
+  if (vacancy.details.company_emails.length > 0) {
+    try {
+      const vacancyData = vacancy;
+      const vacancySave = new Vacancy({
+        ...vacancyData,
+        status: initialStatus,
+      });
+      await vacancySave.save();
+      await task_07_VacancyAddGoogleSheet(vacancy);
+    } catch (error) {
+      handleError(error, 'Error adding vacancy');
+    }
+  } else {
+    log('Поле company_emails пустое. Вакансия не будет сохранена в базу данных.');
   }
-  // Save vacancy to DB
 }
 
 module.exports = task_05_VacancyScrapeCompanyContacts;

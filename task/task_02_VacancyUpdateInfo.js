@@ -2,77 +2,109 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
 const Vacancy = require('../models/vacancy');
-const extractHighestSalary = require('../utils/extractHighestSalary');
-const extractCurrencySymbol = require('../utils/extractCurrencySymbol');
+const { extractHighestSalary, extractCurrencySymbol, convertCurrencyToRUB } = require('../utils/currencyUtils');
 const task_03_VacancyUpdateInfoCompanyDetails = require('./task_03_VacancyUpdateInfoCompanyDetails');
-const { createMultiBar } = require('../config/progressBarConfig');
 const uniqid = require('uniqid');
 const fs = require('fs');
-const path = require('path');  // Добавьте этот импорт
-
-// Создаём инстанс MultiBar вне функции, чтобы его состояние было общим для всех вызовов функций
-const multiBar = createMultiBar();
-let globalBar; // Глобальный прогресс-бар, который будет отображать общий прогресс
+const path = require('path');
+const handleError = require('../utils/errorHandler');
+const log = require('../utils/logger');
 
 const modelsPath = path.join(__dirname, '../models');
 fs.readdir(modelsPath, (err, files) => {
   if (err) {
-    console.error('Ошибка чтения каталога models:', err);
+    handleError(err, 'Ошибка чтения каталога models:');
   } else {
-    console.log('Содержимое каталога models:', files);
+    log('Содержимое каталога models:', files);
   }
 });
 
-async function fetchVacancyDetails(url, searchQuery) {
-    // Передаем bar как аргумент функции для индивидуального отслеживания прогресса
-    const bar = multiBar.create(1, 0, { name: url.slice(0, 50) + '...' });
-    try {
-        const { data } = await axios.get(url, { headers: getHeaders() });
-        const $ = cheerio.load(data);
-            // Создаем объект деталей вакансии...
-            const details = {
-                globalUrl: url,
-                vacancy_id: uniqid.time(),
-                searchRequest: searchQuery,
-                hh_vacancy_title: $('h1[data-qa="vacancy-title"]').text() || null,
-                hh_vacancy_salary: extractHighestSalary($('span[data-qa="vacancy-salary-compensation-type-net"]').text()),
-                hh_vacancy_currency: extractCurrencySymbol($('span[data-qa="vacancy-salary-compensation-type-net"]').text()) || null,
-                hh_vacancy_experience: $('[data-qa="vacancy-experience"]').text() || null,
-                hh_vacancy_view_employment_mode: $('[data-qa="vacancy-view-employment-mode"]').text().split(',').map(text => text.trim()).filter(text => text.length > 0) || null,
-                hh_vacancy_description: $('[data-qa="vacancy-description"]').text() || null,
-                hh_vacancy_skills: $('[data-qa="bloko-tag bloko-tag_inline skills-element"]').map((i, el) => $(el).text()).get() || null,
-                hh_vacancy_company_name: $('a[data-qa="vacancy-company-name"]').first().text() || null,
-                hh_vacancy_company_url: "https://hh.ru"+$('a[data-qa="vacancy-company-name"]').attr('href') || null,
-            };
-            bar.increment(); // Обновляем индивидуальный прогресс-бар
-            globalBar.increment(); // Важно! Обновляем глобальный прогресс-бар
-            await task_03_VacancyUpdateInfoCompanyDetails(details);
-            return details;
-        } catch (error) {
-            console.error(`Failed for URL ${url}: ${error}`);
-            bar.stop(); // Останавливаем индивидуальный прогресс-бар в случае ошибки
-            return null;
-        }
+const initialStatus = {
+  Preparation: true,
+  ReadyToApply: false,
+  Applied: false,
+  TestTask: false,
+  Interview: false,
+  AwaitingResponse: false,
+  Offered: false,
+  Signed: false,
+  Trash: false,
+  Rejected: false,
+};
+
+async function fetchVacancyDetails(url, searchQuery, existingCompanyUrls) {
+  try {
+    const { data } = await axios.get(url, { headers: getHeaders() });
+    const $ = cheerio.load(data);
+
+    const companyUrl = "https://hh.ru" + $('a[data-qa="vacancy-company-name"]').attr('href') || null;
+
+    if (existingCompanyUrls.has(companyUrl)) {
+      log(`Запись с URL компании уже ранее добавлена в базу данных: ${companyUrl}`);
+      return null;
     }
 
-    const task_02_VacancyUpdateInfo = async (urls, searchQuery) => {
-        // Инициализируем глобальный прогресс-бар с общим количеством вакансий
-        globalBar = multiBar.create(urls.length, 0, { name: 'Total Progress' });
+    const employmentModes = $('[data-qa="vacancy-view-employment-mode"]').text().split(',').map(text => text.trim()).filter(text => text.length > 0);
 
-        for (const url of urls) {
-        // Проверяем, существует ли уже запись с таким URL в базе данных
-        const existingVacancy = await Vacancy.findOne({ 'details.globalUrl': url });
-        if (existingVacancy) {
-            console.log("Запись уже ранее добавлена в базу данных: " + url);
-            globalBar.increment(); // Обновляем глобальный прогресс-бар, чтобы отразить пропуск этой вакансии
-            continue; // Пропускаем текущую итерацию цикла и переходим к следующему URL
-        }
+    const invalidModes = ["Стажировка", "Вахтовый метод"];
+    const hasInvalidMode = employmentModes.some(mode => invalidModes.includes(mode));
 
-        // Если записи с таким URL нет, продолжаем обработку
-        await fetchVacancyDetails(url, searchQuery);
-        }
-        console.log('All URLs processed.');
-        return true;
+    if (hasInvalidMode) {
+      log(`Vacancy ${url} is excluded due to employment mode containing "Стажировка" or "Вахтовый метод".`);
+      return null;
+    }
+
+    let salary = extractHighestSalary($('span[data-qa="vacancy-salary-compensation-type-net"]').text());
+    let currency = extractCurrencySymbol($('span[data-qa="vacancy-salary-compensation-type-net"]').text()) || 'RUB';
+
+    if (currency !== 'RUB') {
+      salary = await convertCurrencyToRUB(salary, currency);
+    }
+
+    const details = {
+      globalUrl: url,
+      vacancy_id: uniqid.time(),
+      searchRequest: searchQuery,
+      hh_vacancy_title: $('h1[data-qa="vacancy-title"]').text() || null,
+      hh_vacancy_salary: salary,
+      hh_vacancy_experience: $('[data-qa="vacancy-experience"]').text() || null,
+      hh_vacancy_view_employment_mode: employmentModes,
+      hh_vacancy_description: $('[data-qa="vacancy-description"]').text() || null,
+      hh_vacancy_skills: $('[data-qa="bloko-tag bloko-tag_inline skills-element"]').map((i, el) => $(el).text()).get() || null,
+      hh_vacancy_company_name: $('a[data-qa="vacancy-company-name"]').first().text() || null,
+      hh_vacancy_company_url: companyUrl || null,
     };
 
-    module.exports = task_02_VacancyUpdateInfo;
+    if (details.hh_vacancy_company_url) {
+      await task_03_VacancyUpdateInfoCompanyDetails(details);
+    } else {
+      log(`Вакансия без деталей о компании, пропускаем: ${details.hh_vacancy_company_name}`);
+    }
+
+    return details;
+  } catch (error) {
+    handleError(error, `Failed to fetch vacancy details for URL ${url}`);
+    return null;
+  }
+}
+
+const task_02_VacancyUpdateInfo = async (urls, searchQuery) => {
+  const existingCompanyUrls = new Set(
+    (await Vacancy.find({}, 'details.hh_company_url')).map(vacancy => vacancy.details.hh_company_url)
+  );
+
+  for (const url of urls) {
+    const details = await fetchVacancyDetails(url, searchQuery, existingCompanyUrls);
+    if (details) {
+      const vacancy = new Vacancy({
+        details,
+        status: initialStatus,
+      });
+      await vacancy.save();
+    }
+  }
+  log('All URLs processed.');
+  return true;
+};
+
+module.exports = task_02_VacancyUpdateInfo;

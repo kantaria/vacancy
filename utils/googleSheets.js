@@ -65,7 +65,6 @@ async function appendToGoogleSheet(auth, vacancy) {
       vacancy.details.searchRequest || '',
       vacancy.details.hh_vacancy_title || '',
       vacancy.details.hh_vacancy_salary || '',
-      vacancy.details.hh_vacancy_currency || '',
       vacancy.details.hh_vacancy_experience || '',
       (vacancy.details.hh_vacancy_view_employment_mode || []).join(', '),
       cleanText(vacancy.details.hh_vacancy_description || ''),

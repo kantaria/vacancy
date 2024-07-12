@@ -1,4 +1,6 @@
 const { task_01_VacancyLinksGathering } = require('../task/task_01_VacancyLinksGathering');
+const handleError = require('../utils/errorHandler'); // Исправленный импорт
+const log = require('../utils/logger');
 
 async function VacancyLinksGathering_01(searchQueries) {
   try {
@@ -6,7 +8,7 @@ async function VacancyLinksGathering_01(searchQueries) {
       await task_01_VacancyLinksGathering(searchQuery);
     }
   } catch (error) {
-    console.error(error);
+    handleError(error, 'Error in VacancyLinksGathering_01');
   }
 }
 

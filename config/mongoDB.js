@@ -1,13 +1,16 @@
+// config/mongoDB.js
 const mongoose = require('mongoose');
 require('dotenv').config();
 
 const connectDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
+        await mongoose.connect(process.env.MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
         console.log('MongoDB подключен...');
     } catch (err) {
         console.error('Ошибка подключения к MongoDB:', err.message);
-        // Завершаем процесс с ошибкой для предотвращения запуска приложения без базы данных
         process.exit(1);
     }
 };

@@ -2,68 +2,58 @@ require('dotenv').config();
 const axios = require('axios');
 const cheerio = require('cheerio');
 const getHeaders = require('../config/headers');
-const { createSingleBar } = require('../config/progressBarConfig');
 const task_04_VacancyCollectLinks = require('./task_04_VacancyCollectLinks');
-// const task_06_VacancyAddNotion = require('./task_06_VacancyAddNotion'); // Закомментировано
-const task_07_VacancyAddGoogleSheet = require('./task_07_VacancyAddGoogleSheet');
 const Vacancy = require('../models/vacancy');
+const handleError = require('../utils/errorHandler');
+const log = require('../utils/logger');
 
+const initialStatus = {
+  Preparation: true,
+  ReadyToApply: false,
+  Applied: false,
+  TestTask: false,
+  Interview: false,
+  AwaitingResponse: false,
+  Offered: false,
+  Signed: false,
+  Trash: false,
+  Rejected: false,
+};
 
-function findCompanyFieldOfActivity($) {
-    let result = null;
-    const sidebarHeaderColorElements = $('[data-qa="sidebar-header-color"]');
-    sidebarHeaderColorElements.each(function () {
-        if ($(this).text().trim() === "Сферы деятельности") {
-            result = $(this).next().text().trim().split(',').map(item => item.trim());
-            return false;
-        }
-    });
-    return result;
-}
+async function task_03_VacancyUpdateInfoCompanyDetails(details) {
+  let vacancyDetails = { details };
 
-async function task_03_VacancyUpdateInfoCompanyDetails(details, showProgressBar = true) {
-    let vacancyDetails = { details };
-    const progressBar = createSingleBar(showProgressBar);
-    progressBar.start(100, 0); // Начальное значение прогресса
+  try {
+    const { data } = await axios.get(vacancyDetails.details.hh_vacancy_company_url, { headers: getHeaders() });
+    const $ = cheerio.load(data);
 
-    try {
-        const { data } = await axios.get(vacancyDetails.details.hh_vacancy_company_url, { headers: getHeaders() });
-        progressBar.update(50); // Обновляем прогресс после успешного запроса
-        const $ = cheerio.load(data);
+    vacancyDetails.details.hh_company_url = $('[data-qa="sidebar-company-site"]').text().trim() || null;
 
-        // Извлекаем информацию о компании и добавляем её непосредственно в объект details
-        vacancyDetails.details.hh_company_url = $('[data-qa="sidebar-company-site"]').text().trim() || null;
-
-        progressBar.update(100); // Завершаем прогресс после обработки данных
-        progressBar.stop(); // Останавливаем прогресс-бар
-
-        if (vacancyDetails.details.hh_company_url) {
-            await task_04_VacancyCollectLinks(vacancyDetails);
-        } else {
-            try {
-                const vacancyData = vacancyDetails; // Получаем данные вакансии из тела запроса
-                vacancyData.details.hh_company_url = 'null'; 
-                vacancyData.details.contactLinks = null; 
-                vacancyData.details.company_emails = [];
-                const vacancySave = new Vacancy(vacancyData); // Создаем новый экземпляр модели Vacancy с полученными данными
-                await vacancySave.save(); // Сохраняем вакансию в базу данных
-                // await task_06_VacancyAddNotion(vacancyDetails); // Закомментировано
-                await task_07_VacancyAddGoogleSheet(vacancyDetails); // Добавляем вакансию в Google Sheets
-                console.log('Вакансия сохранена в базу данных БЕЗ деталей о компании');
-            } catch (error) {
-                console.error('Ошибка при добавлении вакансии:', error);
-            }
-        }
-        return vacancyDetails.details; // Возвращаем обновлённые детали вакансии
-    } catch (error) {
-        console.error(error);
-        progressBar.stop();
-        vacancyDetails.details.error = {
-            hh_company_url: null,
-        };
-
-        return vacancyDetails.details;
+    if (vacancyDetails.details.hh_company_url) {
+      await task_04_VacancyCollectLinks(vacancyDetails);
+    } else {
+      log(`Вакансия без деталей о компании, пропускаем: ${vacancyDetails.details.hh_vacancy_company_name}`);
     }
+
+    // Добавление статуса при обновлении информации о компании
+    const vacancy = await Vacancy.findOne({ 'details.globalUrl': vacancyDetails.details.globalUrl });
+    if (vacancy) {
+      vacancy.details = vacancyDetails.details;
+      vacancy.status = initialStatus;
+      await vacancy.save();
+    } else {
+      const newVacancy = new Vacancy({
+        details: vacancyDetails.details,
+        status: initialStatus,
+      });
+      await newVacancy.save();
+    }
+
+    return vacancyDetails.details;
+  } catch (error) {
+    handleError(error, 'Error in task_03_VacancyUpdateInfoCompanyDetails');
+    return vacancyDetails.details;
+  }
 }
 
 module.exports = task_03_VacancyUpdateInfoCompanyDetails;
