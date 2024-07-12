@@ -1,154 +1,198 @@
-// routes/scrapingRoutes.js
 const express = require('express');
 const router = express.Router();
-const Vacancy = require('../models/vacancy');
 const { VacancyLinksGathering_01 } = require('../services/VacancyLinksGathering_01');
-const { removeVacancyDuplicates } = require('../services/RemoveVacancyDuplicates');
+const task_08_AddDatabaseToGoogleSheet = require('../task/task_08_AddDatabaseToGoogleSheet');
+const Vacancy = require('../models/vacancy');
+const { getChatGPTResponse } = require('../task/task_09_ai');
+const { evaluateVacancies } = require('../task/task_09_evaluate_resumes');
+const task_10_AddDatabaseToExcelFile = require('../task/task_10_AddDatabaseToExcelFile');
+const { countMatchingVacancies, updateLimitRating } = require('../utils/vacancyUtils');
+const { updateVacanciesWithGlobalField } = require('../utils/vacancyUpdateUtils');
+const { displayCurrencyRates } = require('../utils/currencyUtils');
+const updateNotionRecord = require('../task/task_11_UpdateNotionRecord');
+const handleError = require('../utils/errorHandler');
+const log = require('../utils/logger');
 
-// В файле routes/scrapingRoutes.js
-router.get('/api/start-scraping', async (req, res) => {
-  const userIP = req.ip; // Получаем IP пользователя
-  const { searchQueries } = req.body;
+// Проверка на дубликаты
+const isDuplicate = async (vacancy) => {
+  const existingVacancy = await Vacancy.findOne({
+    'details.hh_vacancy_company_name': vacancy.details.hh_vacancy_company_name,
+    'details.hh_vacancy_description': vacancy.details.hh_vacancy_description,
+  });
+  return !!existingVacancy;
+};
+
+router.post('/api/chatgpt', async (req, res) => {
+  const { prompt } = req.body;
+
+  if (!prompt) {
+    return res.status(400).send('Prompt is required');
+  }
+
+  try {
+    const response = await getChatGPTResponse(prompt);
+    if (response) {
+      res.json({ response });
+    } else {
+      res.status(500).send('Error getting response from ChatGPT');
+    }
+  } catch (error) {
+    handleError(error, 'Error in /api/chatgpt route');
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+
+router.post('/api/evaluate-vacancies', async (req, res) => {
+  const { limit } = req.body;
+
+  if (!limit || typeof limit !== 'number' || limit <= 0) {
+    return res.status(400).send('Valid limit is required');
+  }
+
+  try {
+    const result = await evaluateVacancies(limit);
+    res.json(result);
+  } catch (error) {
+    handleError(error, 'Error in /api/evaluate-vacancies route');
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+router.get('/api/start-scraping', (req, res) => {
+  const {
+    searchQueries
+  } = req.body;
 
   if (!searchQueries || !Array.isArray(searchQueries) || searchQueries.length === 0) {
     return res.status(400).send('Неверный формат данных. Ожидается массив запросов.');
   }
-
-  // Проверяем, есть ли уже активные процессы для этого IP
-  const existingProcess = await Vacancy.findOne({ userIP, scrapingInProgress: true });
-
-  if (existingProcess) {
-    return res.status(429).send(`Процесс уже запущен для данного IP: . Пожалуйста, дождитесь его завершения.`);
-  }
-
   try {
-    // Если процесса нет, добавляем запись о новом процессе
-    const newProcess = new Vacancy({
-      userIP,
-      scrapingInProgress: true,
-      // Остальные поля модели, если требуется
+    res.json({
+      message: 'Запускаем процессы для переданных запросов'
     });
-    await newProcess.save();
-
-    res.json({ message: 'Запускаем процессы для переданных запросов' });
-    
-    // Здесь запускаем процесс сбора данных и после его завершения обновляем флаг scrapingInProgress
-    // Пример:
-    VacancyLinksGathering_01(searchQueries, userIP)
-      .then(() => {
-        Vacancy.findOneAndUpdate({ userIP, scrapingInProgress: true }, { $set: { scrapingInProgress: false }})
-          .then(() => console.log(`Процесс завершен для ${userIP}`))
-          .catch(err => console.error(err));
-      })
-      .catch(error => {
-        console.error('Ошибка при запуске процессов:', error);
-        // Обновляем флаг scrapingInProgress в случае ошибки тоже
-        Vacancy.findOneAndUpdate({ userIP, scrapingInProgress: true }, { $set: { scrapingInProgress: false }})
-          .catch(err => console.error(err));
-      });
+    VacancyLinksGathering_01(searchQueries);
   } catch (error) {
-    console.error('Ошибка при запуске процессов:', error);
+    handleError(error, 'Ошибка при запуске процессов');
     res.status(500).send('Произошла ошибка при запуске процессов.');
   }
 });
 
 
-router.post('/api/reset-scraping-flag', async (req, res) => {
-  const { userIP } = req.body; // Предполагаем, что IP пользователя будет передан в теле запроса
-
-  if (!userIP) {
-    return res.status(400).send('Необходимо указать IP пользователя.');
-  }
-
-  try {
-    // Находим и обновляем запись, устанавливая scrapingInProgress в false
-    const updated = await Vacancy.updateMany({ userIP, scrapingInProgress: true }, { $set: { scrapingInProgress: false }});
-
-    if (updated.matchedCount === 0) {
-      return res.status(404).send('Процессы для данного IP не найдены или уже сброшены.');
-    }
-
-    res.json({ message: `Флаг scrapingInProgress успешно сброшен для IP: ${userIP}`, updatedCount: updated.modifiedCount });
-  } catch (error) {
-    console.error('Ошибка при сбросе флага scrapingInProgress:', error);
-    res.status(500).send('Произошла ошибка при сбросе флага scrapingInProgress.');
-  }
-});
 
 router.post('/api/vacancies', async (req, res) => {
   try {
-      const vacancyData = req.body; // Получаем данные вакансии из тела запроса
-      const vacancy = new Vacancy(vacancyData); // Создаем новый экземпляр модели Vacancy с полученными данными
-      await vacancy.save(); // Сохраняем вакансию в базу данных
+    const vacancyData = req.body;
 
-      res.status(201).json({
-          message: 'Вакансия успешно добавлена',
-          vacancyId: vacancy._id // Возвращаем ID добавленной вакансии
-      });
+    if (!vacancyData.details.company_emails || vacancyData.details.company_emails.length === 0) {
+      return res.status(400).json({ message: 'Поле company_emails пустое. Вакансия не будет сохранена в базу данных.' });
+    }
+
+    if (await isDuplicate(vacancyData)) {
+      return res.status(400).json({ message: 'Вакансия с такими данными уже существует' });
+    }
+
+    const vacancy = new Vacancy(vacancyData);
+    await vacancy.save();
+
+    res.status(201).json({
+      message: 'Вакансия успешно добавлена',
+      vacancyId: vacancy._id
+    });
   } catch (error) {
-      console.error('Ошибка при добавлении вакансии:', error);
-      res.status(500).send('Произошла ошибка при добавлении вакансии');
+    handleError(error, 'Error adding vacancy');
+    res.status(500).send('Произошла ошибка при добавлении вакансии');
   }
 });
 
-router.get('/api/contact-links', async (req, res) => {
+router.get('/api/add-database-to-google-sheets', async (req, res) => {
   try {
-    const vacancies = await Vacancy.find({}, 'details.contactLinks -_id'); // Извлекаем только contactLinks из всех записей
-    const contactLinksArray = vacancies.map(v => v.details.contactLinks).flat(); // Преобразуем в одномерный массив
-    res.json(contactLinksArray);
+    await task_08_AddDatabaseToGoogleSheet();
+    res.json({
+      message: 'Все записи из базы данных добавлены в Google Sheets'
+    });
   } catch (error) {
-    console.error('Ошибка при получении contact links:', error);
-    res.status(500).send('Произошла ошибка при получении данных');
+    handleError(error, 'Ошибка при добавлении записей в Google Sheets');
+    res.status(500).send('Произошла ошибка при добавлении записей в Google Sheets');
   }
 });
 
-router.get('/api/company-url', async (req, res) => {
+router.get('/api/add-database-to-excel', async (req, res) => {
   try {
-    const vacancies = await Vacancy.find({}, 'details.hh_company_url -_id'); // Извлекаем только hh_company_url из всех записей
-    // Преобразуем в одномерный массив, фильтруем null значения и удаляем дубликаты
-    const companyUrlArray = [...new Set(vacancies
-      .map(v => v.details.hh_company_url)
-      .filter(url => url !== "null")
-      .flat())];
-    res.json(companyUrlArray);
+    await task_10_AddDatabaseToExcelFile();
+    res.json({
+      message: 'Все записи из базы данных добавлены в Excel файл'
+    });
   } catch (error) {
-    console.error('Ошибка при получении company urls:', error);
-    res.status(500).send('Произошла ошибка при получении данных');
+    handleError(error, 'Ошибка при добавлении записей в Excel');
+    res.status(500).send('Произошла ошибка при добавлении записей в Excel');
   }
 });
 
-router.get('/api/company-details', async (req, res) => {
+router.post('/api/count-vacancies', async (req, res) => {
   try {
-    const vacancies = await Vacancy.find(); // Извлекаем все записи вакансий
-    const detailsArray = vacancies.map(vacancy => vacancy); // Преобразуем в массив деталей
-    res.json(detailsArray); // Возвращаем массив деталей в ответе
+    const count = await countMatchingVacancies();
+    res.json({
+      message: `Количество подходящих записей: ${count}`
+    });
   } catch (error) {
-    console.error('Ошибка при получении деталей вакансий:', error);
-    res.status(500).send('Произошла ошибка при получении деталей вакансий');
+    handleError(error, 'Ошибка при подсчете записей');
+    res.status(500).send('Произошла ошибка при подсчете записей');
   }
 });
 
-router.get('/api/remove-duplicates', async (req, res) => {
+router.post('/api/update-vacancies-with-global-field', async (req, res) => {
   try {
-      const { deletedCount, deletedUrls } = await removeVacancyDuplicates();
-      res.status(200).json({
-          message: `Успешно удалено дубликатов вакансий: ${deletedCount}`,
-          deletedUrls: deletedUrls
-      });
+    await updateVacanciesWithGlobalField();
+    res.json({
+      message: 'Все вакансии обновлены с новым полем hh_global.'
+    });
   } catch (error) {
-      console.error('Ошибка при удалении дубликатов вакансий:', error);
-      res.status(500).send('Произошла ошибка при удалении дубликатов вакансий');
+    handleError(error, 'Ошибка при обновлении вакансий');
+    res.status(500).send('Произошла ошибка при обновлении вакансий');
   }
 });
 
-router.get('/api/company-skills', async (req, res) => {
+router.get('/api/currency-rates', async (req, res) => {
   try {
-    const vacancies = await Vacancy.find({}, 'details.hh_vacancy_skills -_id'); // Извлекаем только contactLinks из всех записей
-    const vacancySkills = vacancies.map(v => v.details.hh_vacancy_skills).flat(); // Преобразуем в одномерный массив
-    res.json(vacancySkills);
+    const rates = await displayCurrencyRates();
+    res.json(rates);
   } catch (error) {
-    console.error('Ошибка при получении skills:', error);
-    res.status(500).send('Произошла ошибка при получении данных');
+    handleError(error, 'Ошибка при получении курсов валют');
+    res.status(500).send('Не удалось получить курсы валют.');
+  }
+});
+
+router.post('/api/update-notion-record', async (req, res) => {
+  const { vacancy } = req.body;
+
+  if (!vacancy) {
+    return res.status(400).send('Vacancy data is required');
+  }
+
+  try {
+    await updateNotionRecord(vacancy);
+    res.status(200).send('Запись обновлена');
+  } catch (error) {
+    handleError(error, 'Ошибка в маршруте /api/update-notion-record');
+    res.status(500).send('Внутренняя ошибка сервера');
+  }
+});
+
+router.post('/api/vacancies/details', async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      return res.status(400).json({ message: 'ID вакансии отсутствует в запросе' });
+    }
+    const vacancy = await Vacancy.findById(id);
+    if (!vacancy) {
+      return res.status(404).json({ message: 'Вакансия не найдена' });
+    }
+    res.json(vacancy);
+  } catch (error) {
+    handleError(error, 'Ошибка при получении информации о вакансии');
+    res.status(500).send('Внутренняя ошибка сервера');
   }
 });
 
